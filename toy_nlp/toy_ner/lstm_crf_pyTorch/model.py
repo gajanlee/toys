@@ -10,8 +10,6 @@ torch.manual_seed(1)
 
 START_TAG, STOP_TAG = "<s>", "</s>"
 
-
-
 class BiLSTM_CRF(nn.Module):
 
     def __init__(self, vocab_size, tag_to_ix, embedding_dim, hidden_dim):
