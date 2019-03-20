@@ -18,10 +18,10 @@ def train(input_variable, lengths, target_variable, mask, max_target_len,
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
-    input_variable = input_variable.to(device)
-    lengths = lengths.to(device)
-    target_variable = target_variable.to(device)
-    mask = mask.to(device)
+    input_variable = input_variable#.to(device)
+    lengths = lengths#.to(device)
+    target_variable = target_variable#.to(device)
+    mask = mask#.to(device)
 
     # Initialize vaariables
     loss = 0
@@ -33,7 +33,7 @@ def train(input_variable, lengths, target_variable, mask, max_target_len,
 
     # Initialize decoder input
     decoder_input = torch.LongTensor([[SOS_token for _ in range(batch_size)]])
-    decoder_input = decoder_input.to(device)
+    decoder_input = decoder_input#.to(device)
 
     # Initalize decoder hidden state with the encoder's final hidden state
     decoder_hidden = encoder_hidden[:decoder.n_layers]
@@ -58,9 +58,9 @@ def train(input_variable, lengths, target_variable, mask, max_target_len,
             )
 
             # Use the decoder output as next step input
-            _, topi = decoder_output.topk(1)
+            _, topi = decoder_output#.topk(1)
             decoder_input = torch.LongTensor([[topi[i][0] for i in range(batch_size)]])
-            decoder_input = decoder_input.to(device)
+            decoder_input = decoder_input#.to(device)
             
             mask_loss, nTotal = maskNLLLoss(decoder_output, target_variable[t], mask[t])
             loss += mask_loss
@@ -68,8 +68,8 @@ def train(input_variable, lengths, target_variable, mask, max_target_len,
             n_totals += nTotal
 
     loss.backward()
-    _ = torch.nn.utils.clip_grad_norm_(encoder.parameters(), clip)
-    _ = torch.nn.utils.clip_grad_norm_(decoder.parameters(), clip)
+    _ = torch.nn.utils.clip_grad_norm(encoder.parameters(), clip)
+    _ = torch.nn.utils.clip_grad_norm(decoder.parameters(), clip)
 
     encoder_optimizer.step()
     decoder_optimizer.step()
@@ -109,7 +109,6 @@ def trainIters(model_name, voc, pairs,
             print("Iteration: {}; Percent complete: {:.1f}%; Average loss: {:.4f}".format(iteration, iteration / n_iteration * 100, print_loss_avg))
             print_loss = 0
         
-        
         # Save checkpoint
         if (iteration % save_every == 0):
             directory = os.path.join(save_dir, model_name, "nameTrans", '{}-{}_{}'.format(encoder_n_layers, decoder_n_layers, hidden_size))
@@ -134,8 +133,8 @@ def evaluate(encoder, decoder, searcher, voc, word, max_length):
     
     input_batch = torch.LongTensor(indexes_batch).transpose(0, 1)
 
-    input_batch = input_batch.to(device)
-    lengths = lengths.to(device)
+    input_batch = input_batch#.to(device)
+    lengths = lengths#.to(device)
     tokens, scores = searcher(input_batch, lengths, max_length)
     
     decoded_words = [voc.index2word[token.item()] for token in tokens]
@@ -160,13 +159,13 @@ if __name__ == "__main__":
 
     voc = getTranslateNameVocabulary()
 
-    embedding = nn.embedding(voc.num_words, hidden_size)
+    embedding = nn.Embedding(voc.num_words, hidden_size)
     
     encoder = TranslatorEncoder(hidden_size, embedding, encoder_n_layers, dropout)
     decoder = TranslatorDecoder(attn_model, embedding, hidden_size, voc.num_words, decoder_n_layers, dropout)
 
-    encoder = encoder.to(device)
-    decoder = decoder.to(device)
+    encoder = encoder#.to(device)
+    decoder = decoder#.to(device)
 
     clip = 50.0 
     learning_rate = 0.0001

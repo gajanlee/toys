@@ -2,6 +2,9 @@ import itertools
 import torch
 
 CORPUS = "corpus.txt"
+MODE = "E2C"    # English to Chinese
+
+MAX_TOKEN_LEN = 10
 
 # Default word tokens
 PAD_token = 0  # Used for padding short sentences
@@ -16,7 +19,7 @@ def nameLine_generator(corpus=CORPUS):
             yield (line)
 
 
-def name_pairs_generator(mode="E2C"):
+def name_pairs_generator(mode=MODE):
     for pair in nameLine_generator():
         if mode == "E2C":
             yield (pair[0], pair[1])
@@ -62,7 +65,7 @@ class Vocabulary:
 
     def batch2TrainData(self, pair_batch):
         # len(pair_batch) == batch_size
-        pair_batch.sort(key=lambda x: len(x[0].split(" ")), reverse=True)
+        pair_batch.sort(key=lambda x: len(x[0]), reverse=True)
         input_batch, output_batch = [], []
         for pair in pair_batch:
             input_batch.append(pair[0])
@@ -91,7 +94,7 @@ class Vocabulary:
 
 def getTranslateNameVocabulary():
     voc = Vocabulary("nameTranslator")
-    for english, chinese in data_generator():
+    for english, chinese in name_pairs_generator():
        voc.addWords(english)
        voc.addWords(chinese)
     return voc
