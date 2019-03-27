@@ -5,14 +5,14 @@ import torch
 import torch.autograd as autograd
 import torch.nn as nn
 import torch.optim as optim
-import torch.functional as F
+import torch.nn.functional as F
 
 MAX_LENGTH = 10
 
 
 class TranslatorEncoder(nn.Module):
 
-    def __init__(self, hidden_size, embedding, embedding_dim=10, n_layers=1, dropout=0):
+    def __init__(self, hidden_size, embedding, n_layers=1, dropout=0):
         super(TranslatorEncoder, self).__init__()
 
         # 所有的字符被拆散成字符向量
@@ -30,7 +30,7 @@ class TranslatorEncoder(nn.Module):
         packed = nn.utils.rnn.pack_padded_sequence(embedded, input_lengths)
         outputs, hidden = self.gru(packed, hidden)
         # 解包
-        outputs, _ = torch.nn.rnn.pad_packed_sequence(outputs)
+        outputs, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs)
 
         # bidirectional 求和
         outputs = outputs[:, :, :self.hidden_size] + outputs[:, :, self.hidden_size:]
@@ -109,7 +109,7 @@ def maskNLLLoss(input, target, mask):
     nTotal = mask.sum()
     crossEntropy = -torch.log(torch.gather(input, 1, target.view(-1, 1)).squeeze(1))
     loss = crossEntropy.masked_select(mask).mean()
-    loss = loss.to(device)
+    loss = loss#.to(device)
     return loss, nTotal.item()
 
 # GreedySearchDecoder is used to evaluation phrase
@@ -139,6 +139,3 @@ class GreedySearchDecoder(nn.Module):
             decoder_input = torch.unsqueeze(decoder_input, 0)
 
         return all_tokens, all_scores
-            
-
-
