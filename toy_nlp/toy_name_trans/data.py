@@ -28,7 +28,6 @@ def name_pairs_generator(mode=MODE):
         else:
             raise ValueError(mode, " is invalid pair generator mode.")
 
-
 def zeroPadding(indexes, fillvalue=PAD_token):
     return list(itertools.zip_longest(*indexes, fillvalue=fillvalue))
 
@@ -38,20 +37,27 @@ def binaryMatrix(indexes, value=PAD_token):
         m.append([(0 if token == value else 1) for token in seq])
     return m
 
+def preprocess(word):
+    if type(word) is list:
+        return map(preprocess, word)
+    else:
+        return word.lower()
+
 class Vocabulary:
 
     def __init__(self, name):
         self.name = name
 
-        self.index2word = {}
+        self.index2word = {PAD_token: "PAD", SOS_token: "SOS", EOS_token: "EOS"}
         self.word2index = {}
-        self.word2count = {PAD_token: "PAD", SOS_token: "SOS", EOS_token: "EOS"}
-        self.num_words = 0
+        self.word2count = {}
+        self.num_words = 3
 
     def addWords(self, words):
         for word in words: self.addWord(word)
 
     def addWord(self, word):
+        word = preprocess(word)
         if word not in self.word2index:
             self.word2index[word] = self.num_words
             self.word2count[word] = 1
@@ -61,7 +67,8 @@ class Vocabulary:
             self.word2count[word] += 1
 
     def indexesFromWords(self, words):
-        return [self.word2index[word] for word in words] + [EOS_token]
+        words = preprocess(words)
+        return [SOS_token] + [self.word2index[word] for word in words] + [EOS_token]
 
     def batch2TrainData(self, pair_batch):
         # len(pair_batch) == batch_size
@@ -77,6 +84,7 @@ class Vocabulary:
         return input, lengths, output, mask, max_target_len
     
     def inputVar(self, inputs):
+        inputs = preprocess(inputs)
         indexes_batch = [self.indexesFromWords(input) for input in inputs]
         lengths = torch.tensor([len(indexes) for indexes in indexes_batch])
         padList = zeroPadding(indexes_batch)
@@ -84,6 +92,7 @@ class Vocabulary:
         return padVar, lengths
     
     def outputVar(self, outputs):
+        outputs = preprocess(outputs)
         indexes_batch = [self.indexesFromWords(output) for output in outputs]
         max_target_len = max(len(indexes) for indexes in indexes_batch)
         padList = zeroPadding(indexes_batch)

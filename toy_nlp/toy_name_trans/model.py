@@ -123,10 +123,10 @@ class GreedySearchDecoder(nn.Module):
         encoder_outputs, encoder_hidden = self.encoder(input_seq, input_length)
         
         decoder_hidden = encoder_hidden[:self.decoder.n_layers]
-        decoder_input = torch.ones(1, 1, device=device, dtype=torch.long)
+        decoder_input = torch.ones(1, 1, dtype=torch.long)#, device=device, dtype=torch.long)
 
-        all_tokens = torch.zeros([0], device=device, dtype=torch.long)
-        all_scores = torch.zeros([0], device=device)
+        all_tokens = torch.zeros([0], dtype=torch.long)#, device=device, dtype=torch.long)
+        all_scores = torch.zeros([0])#, device=device)
 
         for _ in range(max_length):
             decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden, encoder_outputs)

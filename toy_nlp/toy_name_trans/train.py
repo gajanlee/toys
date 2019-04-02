@@ -1,4 +1,5 @@
 from model import *
+from data import *
 
 teacher_forcing_ratio = 1.0
 USE_CUDA = torch.cuda.is_available()
@@ -85,6 +86,10 @@ def trainIters(model_name, voc, pairs,
     training_batches = [voc.batch2TrainData([random.choice(pairs) for _ in range(batch_size)])
                         for _ in range(n_iteration)]
 
+    #print(voc.batch2TrainData([pairs[0]]))
+    #print(pairs[0])
+    #print(voc.word2index)
+    #exit()
     # Initializations  
     start_iteration = 1
     print_loss = 0
@@ -108,10 +113,11 @@ def trainIters(model_name, voc, pairs,
             print_loss_avg = print_loss / print_every
             print("Iteration: {}; Percent complete: {:.1f}%; Average loss: {:.4f}".format(iteration, iteration / n_iteration * 100, print_loss_avg))
             print_loss = 0
+            print(evaluation(encoder, decoder, voc, "abie"))
         
         # Save checkpoint
         if (iteration % save_every == 0):
-            directory = os.path.join(save_dir, model_name, "nameTrans", '{}-{}_{}'.format(encoder_n_layers, decoder_n_layers, hidden_size))
+            directory = os.path.join(save_dir, model_name, "nameTrans", '{}-{}'.format(encoder_n_layers, decoder_n_layers))#, hidden_size))
             if not os.path.exists(directory):
                 os.makedirs(directory)
             torch.save({
@@ -128,7 +134,8 @@ def trainIters(model_name, voc, pairs,
 
 def evaluate(encoder, decoder, searcher, voc, word, max_length):
     # batch_size is 1
-    indexes_batch = [voc.indexesFromWord(word)]
+    indexes_batch = [voc.indexesFromWords(word)]
+    print(indexes_batch)
     lengths = torch.tensor([len(indexes) for indexes in indexes_batch])
     
     input_batch = torch.LongTensor(indexes_batch).transpose(0, 1)
@@ -140,17 +147,17 @@ def evaluate(encoder, decoder, searcher, voc, word, max_length):
     decoded_words = [voc.index2word[token.item()] for token in tokens]
     return decoded_words
 
-
-if __name__ == "__main__":
+def train_model():
     model_name = "nt_model"
     attn_model = "dot"
     save_dir = "save"
 
     pairs = list(name_pairs_generator())
     
-    hidden_size = 500
-    encoder_n_layers = 2
-    decoder_n_layers = 2
+    dim_size = 10
+    hidden_size = 30
+    encoder_n_layers = 1
+    decoder_n_layers = 1
     dropout = 0.1
     batch_size = 32
 
@@ -170,9 +177,9 @@ if __name__ == "__main__":
     clip = 50.0 
     learning_rate = 0.0001
     decoder_learning_rate = 5.0
-    n_iteration = 4000
-    print_every = 1
-    save_every = 500
+    n_iteration = 40000
+    print_every = 10
+    save_every = n_iteration / 4
 
     # train mode
     encoder.train()
@@ -181,9 +188,29 @@ if __name__ == "__main__":
     encoder_optimizer = optim.Adam(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.Adam(decoder.parameters(), lr=learning_rate)
 
+
     trainIters(model_name, voc, pairs, 
                 encoder, decoder, encoder_optimizer, decoder_optimizer,
                 embedding, encoder_n_layers, decoder_n_layers, 
                 save_dir, n_iteration, batch_size, print_every, save_every,
                 clip)
 
+    return encoder, decoder, voc
+
+def evaluation(encoder, decoder, voc, sentence):
+    encoder.eval()
+    decoder.eval()
+
+    # Initializer search module
+    searcher = GreedySearchDecoder(encoder, decoder)
+    
+    decode_words = evaluate(encoder, decoder, searcher, voc, sentence, 7)
+    
+    return decode_words
+
+def main():
+    encoder, decoder, voc = train_model()
+    print(evaluation(encoder, decoder, voc, "mike"))
+
+if __name__ == "__main__":
+    main()
