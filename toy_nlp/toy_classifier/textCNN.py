@@ -9,17 +9,23 @@
 @Desc    :   None
 '''
 
+import sys
 import tensorflow as tf
-from keras.layers import Input, LSTM, Dense, Embedding, Conv1D, MaxPooling1D, Concatenate, BatchNormalization, Dropout
+import numpy as np
+import keras
+from keras.layers import (Input, LSTM, Dense, Embedding, 
+                        Conv1D, MaxPooling1D, Concatenate, 
+                        BatchNormalization, Dropout, Lambda)
 from keras.utils import np_utils
+from keras.models import load_model
 
 MAX_LEN = 70
 
-TRAIN_FILE = "./Dataset/train.txt"
-VALID_FILE = "./Dataset/validation.txt"
-TEST_FILE  = "./Dataset/test.txt"
-
-
+BASE_DIR = "/home/lee/workspace/projects/toys/toy_nlp/toy_classifier/"
+TRAIN_FILE = BASE_DIR + "Dataset/train.txt"
+VALID_FILE = BASE_DIR + "Dataset/validation.txt"
+TEST_FILE  = BASE_DIR + "Dataset/test.txt"
+EMBED_FILE = BASE_DIR + "Dataset/wiki_word2vec_50.bin"
 
 def build_word_dictionary():
     words_set = set()
@@ -58,11 +64,11 @@ def convert_label(label):
 
 def convert_text(text):
     tokens = text.split(' ')
-    token_ids = list(map(convert_words_to_id, tokens))
+    token_ids = list(map(convert_word_to_id, tokens))
     return padding(token_ids)
 
-def convert_words_to_id(words):
-    return [word_to_id.get(word, 0) for word in words]
+def convert_word_to_id(word):
+    return word_to_id.get(word, 0)
 
 def padding(token_ids):
     token_ids = token_ids[:MAX_LEN]
@@ -72,25 +78,34 @@ def padding(token_ids):
 
 class TextCnnModel:
     
-    def __init__(self):
+    def __init__(self, embed_mat=None):
         
-        #self.embedding = Embedding(name="embed",
-        #                        weights=[embed_mat], trainable=True)
-        self.embedding = Embedding(1000, 64, input_length=10)
+        if embed_mat is not None:
+            self.embedding = Embedding(len(word_to_id),
+                                    embed_mat.shape[-1],
+                                    weights=[embed_mat], 
+                                    input_length=MAX_LEN,
+                                    trainable=False,
+                                    name="embed",)
+        else:
+            self.embedding = Embedding(len(word_to_id), 64, input_length=MAX_LEN)
 
-        input = Input(shape=(10,), dtype="int32")
-        input = self.embedding(input)
-        conv = Conv1D(filters=20, kernel_size=3, strides=1, padding="same",                        activation="relu")(input)
+        input = Input(shape=(MAX_LEN, ), dtype="int32")
+        input_emb = self.embedding(input)
+        conv = Conv1D(filters=20, kernel_size=3, strides=1, padding="same", activation="relu")(input_emb)
         
         # shape  = (?, length, 20)
         # gmp = MaxPooling1D(pool_size=1, strides=1, padding="same")(conv)
         # global max pooling, shape = (?, 20)
-        gmp = tf.reduce_max(conv, reduction_indices=[1], name="gmp")
+        def reduce_max(conv):
+            return tf.reduce_max(conv, reduction_indices=[1], name="gmp")
+        gmp = Lambda(reduce_max)(conv)
         gmp = Dropout(0.2)(gmp)
 
         hidden = Dense(50, name="fc1", activation="relu")(gmp)
         hidden = Dropout(0.2)(hidden)
         output = Dense(2, activation="softmax")(hidden)
+
         self.model = keras.Model([input], output)
         self.model.compile(keras.optimizers.Adam(0.001),
                             'categorical_crossentropy', ['acc', ])
@@ -112,20 +127,41 @@ class TextCnnModel:
     def save(self):
         self.model.save("sem_classifier.model")
 
+    def load_model(self):
+        self.model = load_model("sem_classifier.model",
+                                custom_objects={"tf": tf})
+
     def predict(self, text):
         if type(text) is str:
             import jieba as jb
             text = list(jb.cut(text))
 
-trainCorpus = convert_corpus(TRAIN_FILE)
-trainX, trainY = trainCorpus
-trainY = np_utils.to_categorical(trainY, num_classes=2)
 
-valCorpus = convert_corpus(VALID_FILE)
-valX, valY = trainCorpus
-valY = np_utils.to_categorical(valY, num_classes=2)
+if __name__ == "__main__":
+    if sys.argv[1] == "train":
+        import gensim
+        vec_model = gensim.models.KeyedVectors.load_word2vec_format(EMBED_FILE, binary=True)
+        word_vecs = np.array(np.random.uniform(-1., 1., [len(word_to_id), vec_model.vector_size]))
+        for word, id in word_to_id.items():
+            if word in vec_model:
+                word_vecs[id] = vec_model[word]
 
-m = TextCnnModel()
-m.train(trainX, trainY, valX, valY)
+        trainCorpus = convert_corpus(TRAIN_FILE)
+        trainX, trainY = trainCorpus
+        trainY = np_utils.to_categorical(trainY, num_classes=2)
 
-# TODO： 导入词向量
+        valCorpus = convert_corpus(VALID_FILE)
+        valX, valY = trainCorpus
+        valY = np_utils.to_categorical(valY, num_classes=2)
+
+        m = TextCnnModel(word_vecs)
+        m.train(np.array(trainX), np.array(trainY), np.array(valX), valY)
+        m.save()
+    elif sys.argv[1] == "test":
+        m = TextCnnModel()
+        m.load_model()
+
+        testCorpus = convert_corpus(TEST_FILE)
+        testX, testY = testCorpus
+        testY = np_utils.to_categorical(testY, num_classes=2)
+        m.predict_all(np.array(testX), testY)
