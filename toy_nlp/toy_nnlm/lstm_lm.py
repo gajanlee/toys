@@ -11,7 +11,7 @@
 
 import keras
 from keras.utils import Sequence
-from keras.layers import Dense, LSTM, Input, Embedding, Lambda
+from keras.layers import Dense, LSTM, Input, Embedding, Lambda, TimeDistributed
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import Model, load_model
@@ -72,24 +72,28 @@ hidden_size = 50# len(word_to_id) // 4)
 
 BATCH_SIZE = 32
 def convert_corpus_trainable(file_path):
-    with open(file_path) as file:
-        Xs, Ys = [], []
-        
-        for num, line in enumerate(file, 1):
-            if not line.strip(): continue
-            words = line.strip().split(" ")
-            if len(words) + 3 > MAX_INPUT_LEN: continue
-            words = padding(words)
-            words_ids = list(map(word_to_id.get, words))
-            #words_cates = list(map(partial(np_utils.to_categorical, num_classes=VOCAB_SIZE), words_ids))
-            words_cates = words_ids
-            X, Y = words_cates[:MAX_INPUT_LEN], words_cates[1:MAX_INPUT_LEN+1]
+    while True:
+        with open(file_path) as file:
+            Xs, Ys = [], []
+            
+            for num, line in enumerate(file, 1):
+                if not line.strip(): continue
+                words = line.strip().split(" ")
+                if len(words) + 3 > MAX_INPUT_LEN: continue
+                
+                words = padding(words)
+                words_ids = list(map(word_to_id.get, words))
+                #words_cates = list(map(partial(np_utils.to_categorical, num_classes=VOCAB_SIZE), words_ids))
+                words_cates = words_ids
 
-            Xs.append(X)
-            Ys.append(Y)
-            if len(Xs) == 32:
-                yield np.array(Xs), np.array(Ys)
-                Xs, Ys = [], []
+                X, Y = words_cates[:MAX_INPUT_LEN], words_cates[1:MAX_INPUT_LEN+1]
+
+                Y = list(map(partial(np_utils.to_categorical, num_classes=VOCAB_SIZE), Y))
+                Xs.append(X)
+                Ys.append(Y)
+                if len(Xs) == 32:
+                    yield np.array(Xs), np.array(Ys).reshape(32, MAX_INPUT_LEN, -1)
+                    Xs, Ys = [], []
 
 def padding(words):
     words = (['<s>']
@@ -110,21 +114,21 @@ def main(mode="train"):
     # 但是多层双向会发生语言泄露的情况
     # 使用RepeatVector和return_sequences的区别
     # https://stackoverflow.com/questions/51749404/how-to-connect-lstm-layers-in-keras-repeatvector-or-return-sequence-true
-    input_lstm = LSTM(hidden_size, return_sequences=True)(input_emb)
+    input_lstm = LSTM(hidden_size, return_sequences=True, kernel_initializer='random_uniform')(input_emb)
     # TimeDistributed的作用
     # https://blog.csdn.net/u012193416/article/details/79477220
-    output = Dense(VOCAB_SIZE, activation="softmax")(input_lstm)
+    output = TimeDistributed(Dense(VOCAB_SIZE, activation="softmax", kernel_initializer='random_uniform'))(input_lstm)
 
     model = keras.Model([input], output)
     model.compile(keras.optimizers.Adam(0.001),
-                'sparse_categorical_crossentropy', ['acc', ])
+                'categorical_crossentropy', ['acc', ])
     model.summary()
     
     if mode == "train":
         #trainX, trainY = convert_corpus_trainable(TRAIN_FILE)()
         #print(trainX.shape)
         #print(trainY.shape)
-        model.fit_generator(convert_corpus_trainable(TRAIN_FILE), steps_per_epoch=1)
+        model.fit_generator(convert_corpus_trainable(TRAIN_FILE),steps_per_epoch=500, epochs=10)
         model.save("language_model.h5")
     elif model == "test":
         model = load_model("language_model.h5")
