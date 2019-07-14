@@ -1,6 +1,11 @@
 from model import *
 from data import *
 
+import logging
+logging.basicConfig(level = logging.INFO,format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+print = logger.warning
+
 teacher_forcing_ratio = 1.0
 USE_CUDA = torch.cuda.is_available()
 device = torch.device("cuda" if USE_CUDA else "cpu")
@@ -113,7 +118,10 @@ def trainIters(model_name, voc, pairs,
             print_loss_avg = print_loss / print_every
             print("Iteration: {}; Percent complete: {:.1f}%; Average loss: {:.4f}".format(iteration, iteration / n_iteration * 100, print_loss_avg))
             print_loss = 0
-            print(evaluation(encoder, decoder, voc, "abie"))
+
+            for eval_word in ["abie", "mike", "root", "taylor", "brook", "brooke"]:
+                print(f"{eval_word} => {evaluation(encoder, decoder, voc, eval_word)}")
+            print("=============================")
         
         # Save checkpoint
         if (iteration % save_every == 0):
@@ -200,6 +208,8 @@ def train_model():
 def evaluation(encoder, decoder, voc, sentence):
     encoder.eval()
     decoder.eval()
+    #sentence = ["SOS"] + list(sentence)[:5] + ["EOS"] + ["PAD"]*7
+    #sentence = sentence[:7]
 
     # Initializer search module
     searcher = GreedySearchDecoder(encoder, decoder)
@@ -210,7 +220,25 @@ def evaluation(encoder, decoder, voc, sentence):
 
 def main():
     encoder, decoder, voc = train_model()
-    print(evaluation(encoder, decoder, voc, "mike"))
+
+    eval_dataset = [
+        "mike",
+        "axel",
+        "aviva",
+        "avi",
+        "qiana",
+        "quaid",
+        "lacy",
+        "lael",
+        "laddle",
+    ]
+
+
+    for name in eval_dataset:
+        print(f"{name} to ", evaluation(encoder, decoder, voc, name))
+
+    for name in eval_dataset:
+        print(f"{name} to {evaluation(encoder, decoder, voc, name)}")
 
 if __name__ == "__main__":
     main()
