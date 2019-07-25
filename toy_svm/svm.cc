@@ -1,48 +1,8 @@
 #include "svm.h"
 
 
-class Solver {
-public:
-    Solver() {};
-
-    void Solve(const svm_problem &problem);
-    void initialize_arguments();
-    bool select_working_set_free(int &first, int &second);
-    bool select_working_set_entire(int &first, int &second);
-    bool update_alpha_pair(const int first, const int second);
-    void save_model();
-
-
-    double caculate_error(int index);
-    double caculate_gx(int index);
-
-private:
-    double bias;    // rho
-    double C;
-    vector<double> alphas;
-    vector<double> error_cache;
-
-    svm_problem problem;
-
-    bool is_free_alpha(int index) { return (alphas[index] > 0 && alphas[index] < C); }
-    double get_alpha(int index) { return alphas[index]; }
-    vector<dataItem> get_data(int index) { return problem.trains[index]; }
-    int get_label(int index) { return problem.labels[index]; }
-    double get_error(int index) { return error_cache[index]; }
-    size_t train_size() { return problem.labels.size(); }
-    
-
-    double clipAlpha(double new_unc, double L, double H);
-
-    void update_alpha(int index, double alpha_new);
-    void update_error(int index);
-    void update_bias(double bias_new);
-
-    bool satisfiedKKT(int index);
-};
-
-
 void Solver::Solve(const svm_problem &problem) {
+    cout << "Start training";
 
     this->problem = problem;
     initialize_arguments();
@@ -50,6 +10,7 @@ void Solver::Solve(const svm_problem &problem) {
 
     for(int iter = 0; iter < MAX_ITER; ++iter) {
         int first, second;
+        if (iter % 10 == 0) cout << ".";
 
         // 不在select里面判断了，select只负责找first
         // 在update里面判断
@@ -62,6 +23,7 @@ void Solver::Solve(const svm_problem &problem) {
         
         update_alpha_pair(first, second);
     }
+    cout << "\nTraining Done." << endl;
 
     save_model();
 }
@@ -200,6 +162,44 @@ bool Solver::satisfiedKKT(int index) {
     }
 }
 
-void Solver::save_model() {
-    
+double Solver::predict(vector<dataItem> item) {
+    double gx = 0;
+    for (int i = 0; i < train_size(); ++i) {
+        gx += alphas[i] * get_label(i) * Kernel::k_function(get_data(i), item);
+    }
+    gx += bias;
+
+    if (gx >= 1) return 1;
+    else if (gx <= -1) return -1;
+
+    return gx;
 }
+
+void Solver::save_model() {
+    cout << "alphas:";
+    for (auto alpha: alphas) {
+        cout << alpha << ",";
+    }
+    cout << "\nbias: " << bias << endl;
+}
+
+
+
+double Kernel::k_function(const vector<dataItem> data1, const vector<dataItem> data2) {
+    // Linear Kernel Function
+    double sum = 0;
+
+    auto iter1 = data1.begin();
+    auto iter2 = data2.begin();
+    for (; iter1 != data1.end() && iter2 != data2.end(); ) {
+        if (iter1->index == iter2->index) {
+            sum += iter1->value * iter2->value;
+            ++iter1, ++iter2;
+        } else {
+            if (iter1->index > iter2->index) ++iter2;
+            else ++iter1;
+        }
+    }
+    return sum;
+}
+
