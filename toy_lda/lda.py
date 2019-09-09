@@ -109,6 +109,8 @@ class LDA:
         NY, USA: ACM. https://doi.org/10.1145/1553374.1553515.
 
         "iterated pseudo-counts" in Section 4.1.
+
+        Also, we could use gibbs sample to caculate once, the model as prior.
         """
         topic_distributions = np.empty((len(docs), self.n_topics))
         docs = self.vocab.convert(docs)
